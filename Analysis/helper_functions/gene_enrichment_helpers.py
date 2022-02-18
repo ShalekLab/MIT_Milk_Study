@@ -6,8 +6,7 @@ import numpy as np
 import pandas as pd
 import sys
 import scanpy as sc
-sys.path.insert(0,"/data/cb/nyquist/breast_milk/breastMilk/")
-import heatmap_helper_functions as hh
+
 
 
 def get_genelist_references(reference_file_path = "../../Data/",gene_sets=["GO_Biological_Process_2021"]):
@@ -34,7 +33,7 @@ def make_ordered_exp(epi_celltype_exp,celltypes,metadata,adata,celltype_col="cel
     exp["time_post_partum_days"] = exp.index.map(metadata["time_post_partum_days"])
     exp = exp.loc[exp["time_post_partum_days"]<400]
     exp = exp.iloc[:,:-1]
-    exp=exp.loc[adata.obs[adata.obs["Epithelial Subclusters"].isin(celltypes)].groupby(["sample"]).count().loc[exp.index,"phase"] > 10]
+    exp=exp.loc[adata.obs[adata.obs["Epithelial Cell Subclusters"].isin(celltypes)].groupby(["sample"]).count().loc[exp.index,"phase"] > 10]
     
     # remove genes not expressed
     exp=exp.loc[:,exp.sum(axis=0)>0]
@@ -54,8 +53,8 @@ def heatmap_and_clusters_by_time(epi_celltype_exp, des_res, celltype,metadata,ad
     directory = "time_series_heatmaps/"
     exp,ordered_exp = make_ordered_exp(epi_celltype_exp, celltype,metadata,adata)
     
-    if "rank_genes_groups" not in adata_all_epi.uns or adata_all_epi.uns["rank_genes_groups"]["params"]["groupby"] != "Epithelial Subclusters" or "pts" not in adata_all_epi.uns["rank_genes_groups"]:
-            sc.tl.rank_genes_groups(adata_all_epi, groupby="Epithelial Subclusters", pts=True)
+    if "rank_genes_groups" not in adata_all_epi.uns or adata_all_epi.uns["rank_genes_groups"]["params"]["groupby"] != "Epithelial Cell Subclusters" or "pts" not in adata_all_epi.uns["rank_genes_groups"]:
+            sc.tl.rank_genes_groups(adata_all_epi, groupby="Epithelial Cell Subclusters", pts=True)
     des_res_reduced = des_res.loc[des_res["padj"]<.05]
     des_res_reduced = des_res_reduced.loc[des_res_reduced["log2FoldChange"].abs()>minlfc]
     des_res_reduced = des_res_reduced.loc[des_res_reduced["baseMean"].abs()>minmean]
@@ -118,15 +117,15 @@ def dotplot_of_pre_res(pre_res, celltype):
 def get_mean_scores_for_heatmap(adata,celltypes, GO_list,metadata):
     if type(celltypes)==list:
         adata.obs["tmp_celltype"] = ""
-        adata.obs.loc[adata.obs["Epithelial Subclusters"].isin(celltypes),"tmp_celltype"] = "_".join(celltypes)
+        adata.obs.loc[adata.obs["Epithelial Cell Subclusters"].isin(celltypes),"tmp_celltype"] = "_".join(celltypes)
         celltypes.append("_".join(celltypes))
         mean_scores_per_celltype=adata.obs.groupby(["tmp_celltype","sample"])[GO_list].mean().reset_index()
         _,sec_ordered = make_ordered_exp(mean_scores_per_celltype,celltypes,metadata,adata,celltype_col="tmp_celltype",lognorm=False)
 
     else:
-        mean_scores_per_celltype=adata.obs.groupby(["Epithelial Subclusters","sample"])[GO_list].mean().reset_index()
+        mean_scores_per_celltype=adata.obs.groupby(["Epithelial Cell Subclusters","sample"])[GO_list].mean().reset_index()
     
-        _,sec_ordered = make_ordered_exp(mean_scores_per_celltype,celltypes,metadata,adata,celltype_col="Epithelial Subclusters",lognorm=False)
+        _,sec_ordered = make_ordered_exp(mean_scores_per_celltype,celltypes,metadata,adata,celltype_col="Epithelial Cell Subclusters",lognorm=False)
     
     combined_scores = sec_ordered.T
     combined_scores.columns = combined_scores.columns.astype(str)
@@ -188,8 +187,8 @@ def enr_and_score_genes(adata, genelist_use,genelist_references,plots_title,gene
     return enr,GO_hits
 
 def remove_uncorrelated_scores(adata, GO_hits,celltype, corr_direction,metadata):
-    mean_scores_per_celltype=adata.obs.groupby(["Epithelial Subclusters","sample"])[GO_hits].mean().reset_index()
-    _,sec_ordered = make_ordered_exp(mean_scores_per_celltype,celltype,metadata,adata,celltype_col="Epithelial Subclusters",lognorm=False)
+    mean_scores_per_celltype=adata.obs.groupby(["Epithelial Cell Subclusters","sample"])[GO_hits].mean().reset_index()
+    _,sec_ordered = make_ordered_exp(mean_scores_per_celltype,celltype,metadata,adata,celltype_col="Epithelial Cell Subclusters",lognorm=False)
 
     combined_scores = sec_ordered.T
     combined_scores.columns = combined_scores.columns.astype(str)
@@ -210,7 +209,7 @@ def collapsed_enrichr_analysis(adata, genelist_use, celltype, plots_title,geneli
     if corr_direction != "":
         GO_hits = remove_uncorrelated_scores(adata, GO_hits,celltype, corr_direction,metadata)
                                 
-    #mean_scores_per_celltype=adata.obs.groupby(["Epithelial Subclusters","sample"])[GO_hits].mean().reset_index()
+    #mean_scores_per_celltype=adata.obs.groupby(["Epithelial Cell Subclusters","sample"])[GO_hits].mean().reset_index()
     overlap_info, collapsed_list = collapse_GO_hits(GO_hits,enr)
     
     
@@ -235,7 +234,7 @@ def GO_term_reduced_heatmap(adata,celltype,collapsed_list,epi_sub_colors,metadat
     #g.savefig(go_res_dir+"/"+plots_title+"_enrichr_heatmap.pdf",bbox_inches="tight")
 
 
-def make_GO_term_metadata(adata_all_epi, group_column = "Epithelial Subclusters"):
+def make_GO_term_metadata(adata_all_epi, group_column = "Epithelial Cell Subclusters"):
     go_kwds = [i for i in adata_all_epi.obs.columns if "GO" in i]
     celltype_means = adata_all_epi.obs[[group_column,]+list(go_kwds)].groupby([group_column]).mean()
     # take the ones that vary the most - will probably still need to weed out from these though
